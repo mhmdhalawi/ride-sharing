@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"log"
 	"net"
 	"os"
@@ -14,15 +13,6 @@ import (
 var GrpcAddr = ":9093"
 
 func main() {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	go func() {
-		sigCh := make(chan os.Signal, 1)
-		signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
-		<-sigCh
-		cancel()
-	}()
 
 	lis, err := net.Listen("tcp", GrpcAddr)
 	if err != nil {
@@ -31,16 +21,22 @@ func main() {
 
 	grpcServer := grpcserver.NewServer()
 
-	log.Printf("Starting gRPC server Trip service on port %s", lis.Addr().String())
+	serverErrors := make(chan error, 1)
+	shutdown := make(chan os.Signal, 1)
+	signal.Notify(shutdown, os.Interrupt, syscall.SIGTERM)
 
 	go func() {
-		if err := grpcServer.Serve(lis); err != nil {
-			log.Printf("failed to serve: %v", err)
-			cancel()
-		}
+		log.Printf("Starting gRPC server Trip service on port %s", lis.Addr().String())
+		serverErrors <- grpcServer.Serve(lis)
 	}()
 
-	<-ctx.Done()
-	log.Println("Shutting down the server...")
-	grpcServer.GracefulStop()
+	select {
+	case err := <-serverErrors:
+		log.Printf("server error: %v", err)
+
+	case sig := <-shutdown:
+		log.Printf("shutting down due to %v", sig)
+		grpcServer.GracefulStop()
+	}
+
 }
