@@ -5,6 +5,9 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"ride-sharing/services/trip-service/internal/infrastructure/grpc"
+	"ride-sharing/services/trip-service/internal/infrastructure/repository"
+	"ride-sharing/services/trip-service/internal/service"
 	"syscall"
 
 	grpcserver "google.golang.org/grpc"
@@ -13,6 +16,8 @@ import (
 var GrpcAddr = ":9093"
 
 func main() {
+	inmemRepo := repository.NewInMemoryRepository()
+	svc := service.NewTripService(inmemRepo)
 
 	lis, err := net.Listen("tcp", GrpcAddr)
 	if err != nil {
@@ -20,6 +25,8 @@ func main() {
 	}
 
 	grpcServer := grpcserver.NewServer()
+
+	grpc.NewGRPCHandler(grpcServer, svc)
 
 	serverErrors := make(chan error, 1)
 	shutdown := make(chan os.Signal, 1)
