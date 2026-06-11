@@ -7,6 +7,7 @@ import (
 	pb "ride-sharing/shared/proto/trip"
 	"ride-sharing/shared/types"
 
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -49,5 +50,30 @@ func (h *gRPCHandler) PreviewTrip(ctx context.Context, req *pb.PreviewTripReques
 	return &pb.PreviewTripResponse{
 		Route:     t.ToProto(),
 		RideFares: []*pb.RideFare{},
+	}, nil
+}
+
+func (h *gRPCHandler) CreateTrip(ctx context.Context, req *pb.CreateTripRequest) (*pb.CreateTripResponse, error) {
+	fareID := req.GetRideFareID()
+	userID := req.GetUserID()
+
+	objectID, err := primitive.ObjectIDFromHex(fareID)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid ride fare id")
+	}
+
+	fare := &domain.RideFareModel{
+		ID:     objectID,
+		UserID: userID,
+	}
+
+	trip, err := h.service.CreateTrip(ctx, fare)
+	if err != nil {
+		log.Println(err)
+		return nil, status.Errorf(codes.Internal, "failed to create trip: %v", err)
+	}
+
+	return &pb.CreateTripResponse{
+		TripID: trip.ID.Hex(),
 	}, nil
 }
