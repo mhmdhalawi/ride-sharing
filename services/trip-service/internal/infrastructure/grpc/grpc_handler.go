@@ -7,7 +7,6 @@ import (
 	pb "ride-sharing/shared/proto/trip"
 	"ride-sharing/shared/types"
 
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -41,15 +40,24 @@ func (h *gRPCHandler) PreviewTrip(ctx context.Context, req *pb.PreviewTripReques
 		Longitude: destination.Longitude,
 	}
 
+	userID := req.GetUserID()
+
 	t, err := h.service.GetRoute(ctx, pickupCoord, destinationCoord)
 	if err != nil {
 		log.Println(err)
 		return nil, status.Errorf(codes.Internal, "failed to get route: %v", err)
 	}
 
+	estimatedFares := h.service.EstimatePackagesPriceWithRoute(t)
+
+	fares, err := h.service.GenerateTripFares(ctx, estimatedFares, userID)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to generate the ride fares: %v", err)
+	}
+
 	return &pb.PreviewTripResponse{
 		Route:     t.ToProto(),
-		RideFares: []*pb.RideFare{},
+		RideFares: domain.ToRideFaresProto(fares),
 	}, nil
 }
 
@@ -57,21 +65,17 @@ func (h *gRPCHandler) CreateTrip(ctx context.Context, req *pb.CreateTripRequest)
 	fareID := req.GetRideFareID()
 	userID := req.GetUserID()
 
-	objectID, err := primitive.ObjectIDFromHex(fareID)
+	rideFare, err := h.service.GetAndValidateFare(ctx, fareID, userID)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid ride fare id")
+		return nil, status.Errorf(codes.Internal, "failed to validate the fare: %v", err)
 	}
 
-	fare := &domain.RideFareModel{
-		ID:     objectID,
-		UserID: userID,
+	trip, err := h.service.CreateTrip(ctx, rideFare)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to create the trip: %v", err)
 	}
 
-	trip, err := h.service.CreateTrip(ctx, fare)
-	if err != nil {
-		log.Println(err)
-		return nil, status.Errorf(codes.Internal, "failed to create trip: %v", err)
-	}
+	// Add a comment at the end of the function to publish an event on the Async Comms module.
 
 	return &pb.CreateTripResponse{
 		TripID: trip.ID.Hex(),

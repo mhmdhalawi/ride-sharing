@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"ride-sharing/services/trip-service/internal/domain"
 )
 
@@ -21,4 +22,18 @@ func (r *inMemoryRepository) CreateTrip(ctx context.Context, trip *domain.TripMo
 	// Store the trip in the in-memory map
 	r.trip[trip.ID.Hex()] = trip
 	return trip, nil
+}
+
+func (r *inMemoryRepository) SaveRideFare(ctx context.Context, f *domain.RideFareModel) error {
+	r.rideFares[f.ID.Hex()] = f
+	return nil
+}
+
+func (r *inMemoryRepository) GetRideFareByID(ctx context.Context, id string) (*domain.RideFareModel, error) {
+	fare, exist := r.rideFares[id]
+	if !exist {
+		return nil, fmt.Errorf("fare does not exist with ID: %s", id)
+	}
+
+	return fare, nil
 }
