@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"ride-sharing/services/trip-service/internal/infrastructure/events"
 	"ride-sharing/services/trip-service/internal/infrastructure/grpc"
 	"ride-sharing/services/trip-service/internal/infrastructure/repository"
 	"ride-sharing/services/trip-service/internal/service"
@@ -36,9 +37,11 @@ func main() {
 
 	log.Println("Starting RabbitMQ connection")
 
+	publisher := events.NewTripEventPublisher(rabbitmq)
+
 	grpcServer := grpcserver.NewServer()
 
-	grpc.NewGRPCHandler(grpcServer, svc)
+	grpc.NewGRPCHandler(grpcServer, svc, publisher)
 
 	serverErrors := make(chan error, 1)
 	shutdown := make(chan os.Signal, 1)
