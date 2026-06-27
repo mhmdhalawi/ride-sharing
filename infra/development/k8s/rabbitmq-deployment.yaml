@@ -19,26 +19,31 @@ spec:
           ports:
             - containerPort: 5672 # AMQP port
             - containerPort: 15672 # Management UI port
+          startupProbe:
+            exec:
+              command: ["rabbitmq-diagnostics", "ping"]
+            periodSeconds: 10
+            timeoutSeconds: 20
+            failureThreshold: 30 # allow up to ~5 min to boot
           readinessProbe:
             exec:
-              command: ["rabbitmq-diagnostics", "check_running"]
-            initialDelaySeconds: 20
-            periodSeconds: 10
-            timeoutSeconds: 15
+              command: ["rabbitmq-diagnostics", "check_port_connectivity"]
+            periodSeconds: 15
+            timeoutSeconds: 20
             failureThreshold: 3
           livenessProbe:
             exec:
-              command: ["rabbitmq-diagnostics", "check_running"]
-            initialDelaySeconds: 60
+              command: ["rabbitmq-diagnostics", "ping"]
             periodSeconds: 30
-            timeoutSeconds: 15
+            timeoutSeconds: 20
+            failureThreshold: 3
           resources:
             requests:
               memory: "512Mi"
-              cpu: "250m"
+              cpu: "500m"
             limits:
-              memory: "512Mi"
-              cpu: "250m"
+              memory: "1Gi"
+              cpu: "1000m"
           env:
             - name: RABBITMQ_DEFAULT_USER
               valueFrom:
