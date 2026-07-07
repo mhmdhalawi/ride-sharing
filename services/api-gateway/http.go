@@ -9,12 +9,53 @@ import (
 	"ride-sharing/shared/contracts"
 	"ride-sharing/shared/env"
 	"ride-sharing/shared/messaging"
+	"ride-sharing/shared/tracing"
 
 	"github.com/stripe/stripe-go/v81"
 	"github.com/stripe/stripe-go/v81/webhook"
 )
 
+var tracer = tracing.GetTracer("api-gateway")
+
+func handleTripStart(w http.ResponseWriter, r *http.Request) {
+	ctx, span := tracer.Start(r.Context(), "handleTripStart")
+	defer span.End()
+
+	var reqBody startTripRequest
+	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
+		http.Error(w, "failed to parse JSON data", http.StatusBadRequest)
+		return
+	}
+
+	defer r.Body.Close()
+
+	// Why we need to create a new client for each connection:
+	// because if a service is down, we don't want to block the whole application
+	// so we create a new client for each connection
+	tripService, err := grpc_clients.NewTripServiceClient()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Don't forget to close the client to avoid resource leaks!
+	defer tripService.Close()
+
+	trip, err := tripService.Client.CreateTrip(ctx, reqBody.toProto())
+	if err != nil {
+		log.Printf("Failed to start a trip: %v", err)
+		http.Error(w, "Failed to start trip", http.StatusInternalServerError)
+		return
+	}
+
+	response := contracts.APIResponse{Data: trip}
+
+	writeJSON(w, http.StatusCreated, response)
+}
+
 func handleTripPreview(w http.ResponseWriter, r *http.Request) {
+	ctx, span := tracer.Start(r.Context(), "handleTripPreview")
+	defer span.End()
+
 	var reqBody previewTripRequest
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
 		http.Error(w, "failed to parse JSON data", http.StatusBadRequest)
@@ -40,7 +81,7 @@ func handleTripPreview(w http.ResponseWriter, r *http.Request) {
 	// Don't forget to close the client to avoid resource leaks!
 	defer tripService.Close()
 
-	tripPreview, err := tripService.Client.PreviewTrip(r.Context(), reqBody.toProto())
+	tripPreview, err := tripService.Client.PreviewTrip(ctx, reqBody.toProto())
 	if err != nil {
 		log.Printf("Failed to preview a trip: %v", err)
 		http.Error(w, "Failed to preview trip", http.StatusInternalServerError)
@@ -52,37 +93,10 @@ func handleTripPreview(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, response)
 }
 
-func handleTripStart(w http.ResponseWriter, r *http.Request) {
-	var reqBody startTripRequest
-	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
-		http.Error(w, "failed to parse JSON data", http.StatusBadRequest)
-		return
-	}
-	defer r.Body.Close()
-
-	// validation
-	if reqBody.UserID == "" || reqBody.RideFareID == "" {
-		http.Error(w, "user ID and ride fare ID are required", http.StatusBadRequest)
-		return
-	}
-	tripService, err := grpc_clients.NewTripServiceClient()
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer tripService.Close()
-
-	trip, err := tripService.Client.CreateTrip(r.Context(), reqBody.toProto())
-	if err != nil {
-		log.Printf("Failed to create a trip: %v", err)
-		http.Error(w, "Failed to create trip", http.StatusInternalServerError)
-		return
-	}
-	response := contracts.APIResponse{Data: trip}
-
-	writeJSON(w, http.StatusCreated, response)
-}
-
 func handleStripeWebhook(w http.ResponseWriter, r *http.Request, rb *messaging.RabbitMQ) {
+	ctx, span := tracer.Start(r.Context(), "handleStripeWebhook")
+	defer span.End()
+
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "Failed to read request body", http.StatusInternalServerError)
@@ -142,7 +156,7 @@ func handleStripeWebhook(w http.ResponseWriter, r *http.Request, rb *messaging.R
 		}
 
 		if err := rb.PublishMessage(
-			r.Context(),
+			ctx,
 			contracts.PaymentEventSuccess,
 			message,
 		); err != nil {
