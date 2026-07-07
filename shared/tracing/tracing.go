@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/exporters/jaeger"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -14,15 +14,15 @@ import (
 )
 
 type Config struct {
-	ServiceName    string
-	Environment    string
-	JaegerEndpoint string
+	ServiceName  string
+	Environment  string
+	OTLPEndpoint string
 }
 
 func InitTracer(cfg Config) (func(context.Context) error, error) {
 	// Exporter
-	traceExporter, err := newExporter(cfg.JaegerEndpoint)
-		if err != nil {
+	traceExporter, err := newExporter(context.Background(), cfg.OTLPEndpoint)
+	if err != nil {
 		return nil, err
 	}
 
@@ -44,8 +44,10 @@ func GetTracer(name string) trace.Tracer {
 	return otel.GetTracerProvider().Tracer(name)
 }
 
-func newExporter(endpoint string) (sdktrace.SpanExporter, error) {
-	return jaeger.New(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(endpoint)))
+func newExporter(ctx context.Context, endpoint string) (sdktrace.SpanExporter, error) {
+	// An http:// scheme implies an insecure (plaintext) connection,
+	// which is fine for in-cluster traffic in development.
+	return otlptracegrpc.New(ctx, otlptracegrpc.WithEndpointURL(endpoint))
 }
 
 func newPropagator() propagation.TextMapPropagator {

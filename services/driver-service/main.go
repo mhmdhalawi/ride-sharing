@@ -19,9 +19,9 @@ var GrpcAddr = ":9092"
 func main() {
 	// Initialize Tracing
 	tracerCfg := tracing.Config{
-		ServiceName:    "driver-service",
-		Environment:    env.GetString("ENVIRONMENT", "development"),
-		JaegerEndpoint: env.GetString("JAEGER_ENDPOINT", "http://jaeger:14268/api/traces"),
+		ServiceName:  "driver-service",
+		Environment:  env.GetString("ENVIRONMENT", "development"),
+		OTLPEndpoint: env.GetString("OTEL_EXPORTER_OTLP_ENDPOINT", "http://jaeger:4317"),
 	}
 
 	sh, err := tracing.InitTracer(tracerCfg)

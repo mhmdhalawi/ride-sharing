@@ -31,10 +31,10 @@ spec:
                 configMapKeyRef:
                   key: GATEWAY_HTTP_ADDR
                   name: app-config
-            - name: JAEGER_ENDPOINT
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
               valueFrom:
                 configMapKeyRef:
-                  key: JAEGER_ENDPOINT
+                  key: OTEL_EXPORTER_OTLP_ENDPOINT
                   name: app-config
             - name: RABBITMQ_URI
               valueFrom:
@@ -55,6 +55,5 @@ spec:
   type: LoadBalancer
   ports:
     - port: 8081
-      targetPort: 8081
   selector:
     app: api-gateway

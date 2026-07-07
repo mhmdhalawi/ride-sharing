@@ -16,9 +16,16 @@ spec:
       containers:
         - name: jaeger
           image: jaegertracing/all-in-one:1.49
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
           ports:
             - containerPort: 16686 # UI
-            - containerPort: 14268 # Collector HTTP
+            - containerPort: 4317 # OTLP gRPC
           env:
             - name: COLLECTOR_OTLP_ENABLED
               value: "true"
@@ -33,8 +40,6 @@ spec:
   ports:
     - name: ui
       port: 16686
-      targetPort: 16686
-    - name: collector
-      port: 14268
-      targetPort: 14268
+    - name: otlp-grpc
+      port: 4317
   type: ClusterIP 

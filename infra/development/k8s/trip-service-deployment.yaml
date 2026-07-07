@@ -37,10 +37,10 @@ spec:
                   name: external-apis
                   key: osrm
 
-            - name: JAEGER_ENDPOINT
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
               valueFrom:
                 configMapKeyRef:
-                  key: JAEGER_ENDPOINT
+                  key: OTEL_EXPORTER_OTLP_ENDPOINT
                   name: app-config
 ---
 apiVersion: v1
@@ -53,5 +53,4 @@ spec:
   ports:
     - port: 9093
       name: grpc
-      targetPort: 9093
   type: ClusterIP
